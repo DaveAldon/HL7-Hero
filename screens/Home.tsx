@@ -2,21 +2,24 @@ import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { SafeAreaView, StyleSheet, FlatList, TextInput, TouchableOpacity } from "react-native";
 import BottomSheet from "reanimated-bottom-sheet";
-import EditScreenInfo from "../components/EditScreenInfo";
 import { Text, View } from "../components/Themed";
 import * as FileSystem from "expo-file-system";
-import * as Permissions from "expo-permissions";
 import * as Device from "expo-device";
 import * as EditCard from "../components/EditHL7";
 import * as enums from "../constants/enums";
 import { useTheme } from "@react-navigation/native";
-import { color } from "react-native-reanimated";
 
 interface IHL7File {
   id: number;
   directory: string;
   name: string;
 }
+
+const empty = {
+  id: 0,
+  directory: "",
+  name: "",
+};
 
 export default function Home() {
   const [search, setSearch] = useState("");
@@ -25,22 +28,25 @@ export default function Home() {
   const bottomSheetRef = useRef(null);
   const { colors } = useTheme();
   const [hl7Raw, setHl7Raw] = useState("");
+  const [filePath, setFilePath] = useState("");
+  const [hl7Object, setHl7Object] = useState<IHL7File>(empty);
+  const [title, setTitle] = useState("Untitled");
 
   useEffect(() => {
     (async () => {
       let dir = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory);
       state.docsList = [];
-      dir.forEach((val, index) => {
+      dir.forEach(async (val, index) => {
         let directory = `${FileSystem.documentDirectory}/${val}`;
+        //FileSystem.deleteAsync(directory);
         state.docsList.push({
           id: index,
           directory: directory,
-          name: directory.split("/").pop().split(".")[0],
+          name: directory.split("~").pop().split(".")[0],
         });
+        setFilteredDataSource(state.docsList);
+        setMasterDataSource(state.docsList);
       });
-      console.log(state);
-      setFilteredDataSource(state.docsList);
-      setMasterDataSource(state.docsList);
     })();
   }, []);
 
@@ -49,7 +55,17 @@ export default function Home() {
       <View style={[styles.panel, { backgroundColor: colors.border }]}>
         <View style={{ height: "100%", width: Device.modelName === "iPad" ? "50%" : "100%", backgroundColor: enums.colors.transparent }}>
           <TextInput
-            style={{ height: "86.5%", borderColor: colors.text, borderWidth: 1, borderRadius: 10, padding: 10, color: colors.text }}
+            style={{ height: "10%", borderColor: colors.text, borderWidth: 0.2, borderRadius: 10, padding: 10, color: colors.text }}
+            onChangeText={(text) => {
+              setTitle(text);
+            }}
+            value={title}
+            underlineColorAndroid={enums.colors.transparent}
+            placeholder="Untitled"
+            placeholderTextColor={colors.text}
+          />
+          <TextInput
+            style={{ height: "80%", borderColor: colors.text, borderWidth: 0.2, borderRadius: 10, padding: 10, color: colors.text }}
             onChangeText={(text) => {
               setHl7Raw(text);
             }}
@@ -59,7 +75,22 @@ export default function Home() {
             placeholderTextColor={colors.text}
             multiline={true}
           />
-          <TouchableOpacity onPress={() => console.log("asdasd")}>
+          <TouchableOpacity
+            onPress={async () => {
+              FileSystem.deleteAsync(filePath);
+              let fileUri = `${FileSystem.documentDirectory}${new Date().valueOf()}~${title}.txt`;
+              await FileSystem.writeAsStringAsync(fileUri, "Hello World", {
+                encoding: FileSystem.EncodingType.UTF8,
+              });
+              console.log(fileUri);
+              const textJson = {
+                name: title,
+                hl7Raw: hl7Raw,
+              };
+              FileSystem.writeAsStringAsync(fileUri, JSON.stringify(textJson));
+              bottomSheetRef.current.snapTo(1);
+            }}
+          >
             <View style={[{ backgroundColor: colors.primary }, styles.panelButton]}>
               <Text style={styles.panelButtonTitle}>Save</Text>
             </View>
@@ -115,7 +146,9 @@ export default function Home() {
   const getItem = async (item: IHL7File) => {
     // Function for click on an item
     //alert("Id : " + item.id + " Title : " + item.name);
-    setHl7Raw(await FileSystem.readAsStringAsync(item.directory));
+    setHl7Raw(JSON.parse(await FileSystem.readAsStringAsync(item.directory)).hl7Raw);
+    setFilePath(item.directory);
+    setTitle(item.directory.split("~").pop().split(".")[0]);
     bottomSheetRef.current.snapTo(0);
   };
 
@@ -128,14 +161,12 @@ export default function Home() {
       <View style={styles.container}>
         <TouchableOpacity
           onPress={async () => {
-            let fileUri = FileSystem.documentDirectory + "textsss.txt";
-            await FileSystem.writeAsStringAsync(fileUri, "Hello World", {
-              encoding: FileSystem.EncodingType.UTF8,
-            });
-            console.log(fileUri);
+            bottomSheetRef.current.snapTo(0);
           }}
         >
-          <Text>new</Text>
+          <View style={[{ backgroundColor: colors.primary }, styles.panelButton]}>
+            <Text style={styles.panelButtonTitle}>New</Text>
+          </View>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={async () => {
