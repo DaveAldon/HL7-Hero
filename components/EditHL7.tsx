@@ -1,28 +1,6 @@
 import { Text, View } from "../components/Themed";
 import * as React from "react";
-import { TextInput, StyleSheet, TouchableOpacity } from "react-native";
-import * as Device from "expo-device";
-import * as enums from "../constants/enums";
-let hl7Raw = "";
-export const RenderInner = (colors: any) => {
-  return (
-    <View style={[styles.panel, { backgroundColor: colors.border }]}>
-      <View style={{ width: Device.modelName === "iPad" ? "50%" : "100%", backgroundColor: enums.colors.transparent }}>
-        <TextInput
-          style={{ height: 300 }}
-          onChangeText={(text) => {
-            hl7Raw += text;
-            console.log(hl7Raw);
-          }}
-          value={hl7Raw}
-          underlineColorAndroid="transparent"
-          placeholder="Add HL7 here"
-          multiline={true}
-        />
-      </View>
-    </View>
-  );
-};
+import { StyleSheet } from "react-native";
 
 export const RenderHeader = (colors: any) => {
   return (

@@ -8,7 +8,8 @@ import * as Device from "expo-device";
 import * as EditCard from "../components/EditHL7";
 import * as enums from "../constants/enums";
 import { useTheme } from "@react-navigation/native";
-
+import * as Parser from "../hooks/parseHL7";
+import { parse } from "expo-linking";
 interface IHL7File {
   id: number;
   directory: string;
@@ -26,11 +27,18 @@ export default function Home() {
   const [filteredDataSource, setFilteredDataSource] = useState([]);
   const [masterDataSource, setMasterDataSource] = useState([]);
   const bottomSheetRef = useRef(null);
+  const editBottomSheetRef = useRef(null);
   const { colors } = useTheme();
   const [hl7Raw, setHl7Raw] = useState("");
   const [filePath, setFilePath] = useState("");
   const [hl7Object, setHl7Object] = useState<IHL7File>(empty);
   const [title, setTitle] = useState("Untitled");
+  const [render, setRender] = useState(false);
+  const [parsedSegments, setParsedSegments] = useState(null);
+
+  useEffect(() => {
+    //console.log(parsedSegments);
+  }, [render]);
 
   useEffect(() => {
     (async () => {
@@ -55,7 +63,7 @@ export default function Home() {
       <View style={[styles.panel, { backgroundColor: colors.border }]}>
         <View style={{ height: "100%", width: Device.modelName === "iPad" ? "50%" : "100%", backgroundColor: enums.colors.transparent }}>
           <TextInput
-            style={{ height: "10%", borderColor: colors.text, borderWidth: 0.2, borderRadius: 10, padding: 10, color: colors.text }}
+            style={{ height: 40, borderColor: colors.text, borderWidth: 0.2, borderRadius: 10, padding: 10, color: colors.text }}
             onChangeText={(text) => {
               setTitle(text);
             }}
@@ -65,7 +73,7 @@ export default function Home() {
             placeholderTextColor={colors.text}
           />
           <TextInput
-            style={{ height: "80%", borderColor: colors.text, borderWidth: 0.2, borderRadius: 10, padding: 10, color: colors.text }}
+            style={{ height: 325, borderColor: colors.text, borderWidth: 0.2, borderRadius: 10, padding: 10, color: colors.text }}
             onChangeText={(text) => {
               setHl7Raw(text);
             }}
@@ -77,12 +85,13 @@ export default function Home() {
           />
           <TouchableOpacity
             onPress={async () => {
-              FileSystem.deleteAsync(filePath);
+              try {
+                FileSystem.deleteAsync(filePath);
+              } catch {}
               let fileUri = `${FileSystem.documentDirectory}${new Date().valueOf()}~${title}.txt`;
               await FileSystem.writeAsStringAsync(fileUri, "Hello World", {
                 encoding: FileSystem.EncodingType.UTF8,
               });
-              console.log(fileUri);
               const textJson = {
                 name: title,
                 hl7Raw: hl7Raw,
@@ -93,6 +102,38 @@ export default function Home() {
           >
             <View style={[{ backgroundColor: colors.primary }, styles.panelButton]}>
               <Text style={styles.panelButtonTitle}>Save</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const RenderInnerEdit = (colors: any, parsedSegments: any) => {
+    /* Object.keys(parsedSegments).forEach(function (key) {
+      Object.keys(parsedSegments).forEach(function (key) {
+        [key].forEach((segment: any) => {
+          console.log(segment);
+        });
+      });
+    }); */
+    return (
+      <View style={[styles.panel, { backgroundColor: colors.border }]}>
+        <View style={{ height: "100%", width: Device.modelName === "iPad" ? "50%" : "100%", backgroundColor: enums.colors.transparent }}>
+          <Text style={{ fontSize: 25, fontWeight: "700", color: colors.text, padding: 10 }}>{title}</Text>
+          {/* {parsedSegments &&
+            parsedSegments?.map((segment: any, index: number) => {
+              <Text>{segment}</Text>;
+            })} */}
+          <Text>{JSON.stringify(parsedSegments)}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              bottomSheetRef.current.snapTo(0);
+              editBottomSheetRef.current.snapTo(1);
+            }}
+          >
+            <View style={[{ backgroundColor: colors.primary }, styles.panelButton]}>
+              <Text style={styles.panelButtonTitle}>Edit</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -149,7 +190,16 @@ export default function Home() {
     setHl7Raw(JSON.parse(await FileSystem.readAsStringAsync(item.directory)).hl7Raw);
     setFilePath(item.directory);
     setTitle(item.directory.split("~").pop().split(".")[0]);
-    bottomSheetRef.current.snapTo(0);
+
+    setParsedSegments(Parser.parseHL7(hl7Raw));
+    setRender(!render);
+
+    console.log(parsedSegments);
+    if (parsedSegments == null || parsedSegments == undefined || parsedSegments == {}) {
+    } else {
+      bottomSheetRef.current.snapTo(1);
+      editBottomSheetRef.current.snapTo(0);
+    }
   };
 
   const state = {
@@ -208,6 +258,14 @@ export default function Home() {
         borderRadius={0}
         renderHeader={() => EditCard.RenderHeader(colors)}
         renderContent={() => RenderInner(colors)}
+      />
+      <BottomSheet
+        ref={editBottomSheetRef}
+        snapPoints={[Device.modelName === "iPad" ? 700 : 700, 0]}
+        initialSnap={1}
+        borderRadius={0}
+        renderHeader={() => EditCard.RenderHeader(colors)}
+        renderContent={() => RenderInnerEdit(colors, parsedSegments)}
       />
     </SafeAreaView>
   );
