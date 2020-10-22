@@ -10,6 +10,7 @@ import * as enums from "../constants/enums";
 import { useTheme } from "@react-navigation/native";
 import * as Parser from "../hooks/parseHL7";
 import { parse } from "expo-linking";
+import { ScrollView } from "react-native-gesture-handler";
 interface IHL7File {
   id: number;
   directory: string;
@@ -34,7 +35,7 @@ export default function Home() {
   const [hl7Object, setHl7Object] = useState<IHL7File>(empty);
   const [title, setTitle] = useState("Untitled");
   const [render, setRender] = useState(false);
-  const [parsedSegments, setParsedSegments] = useState(null);
+  const [parsedSegments, setParsedSegments] = useState([]);
 
   useEffect(() => {
     //console.log(parsedSegments);
@@ -109,7 +110,7 @@ export default function Home() {
     );
   };
 
-  const RenderInnerEdit = (colors: any, parsedSegments: any) => {
+  const RenderInnerEdit = () => {
     /* Object.keys(parsedSegments).forEach(function (key) {
       Object.keys(parsedSegments).forEach(function (key) {
         [key].forEach((segment: any) => {
@@ -120,12 +121,42 @@ export default function Home() {
     return (
       <View style={[styles.panel, { backgroundColor: colors.border }]}>
         <View style={{ height: "100%", width: Device.modelName === "iPad" ? "50%" : "100%", backgroundColor: enums.colors.transparent }}>
-          <Text style={{ fontSize: 25, fontWeight: "700", color: colors.text, padding: 10 }}>{title}</Text>
-          {/* {parsedSegments &&
-            parsedSegments?.map((segment: any, index: number) => {
-              <Text>{segment}</Text>;
-            })} */}
-          <Text>{JSON.stringify(parsedSegments)}</Text>
+          <Text style={{ fontSize: 25, fontWeight: "700", color: colors.text, marginLeft: 20 }}>{title}</Text>
+          <ScrollView style={{ width: "100%", paddingHorizontal: 20 }}>
+            {parsedSegments?.map((segments: any, index: number) => {
+              return Object.keys(segments).map((segmentCategory, index) => {
+                return (
+                  <View style={{ backgroundColor: enums.colors.transparent }} key={index}>
+                    <Text selectable style={{ marginVertical: 10, fontSize: 20 }}>
+                      {segmentCategory}
+                    </Text>
+                    {segments[segmentCategory].map((segment: any, indexi: number) => {
+                      if (segment.subValue)
+                        return (
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              justifyContent: "space-between",
+                              borderWidth: 1,
+                              borderColor: colors.background,
+                              backgroundColor: enums.colors.transparent,
+                              padding: 5,
+                            }}
+                            key={indexi}
+                          >
+                            <Text style={{ fontWeight: "300" }} selectable>
+                              {segment.segmentName}
+                            </Text>
+                            <Text selectable>{segment.subValue}</Text>
+                          </View>
+                        );
+                    })}
+                  </View>
+                );
+              });
+            })}
+          </ScrollView>
+          {/* <Text>{JSON.stringify(parsedSegments)}</Text> */}
           <TouchableOpacity
             onPress={() => {
               bottomSheetRef.current.snapTo(0);
@@ -187,20 +218,25 @@ export default function Home() {
   const getItem = async (item: IHL7File) => {
     // Function for click on an item
     //alert("Id : " + item.id + " Title : " + item.name);
-    setHl7Raw(JSON.parse(await FileSystem.readAsStringAsync(item.directory)).hl7Raw);
-    setFilePath(item.directory);
-    setTitle(item.directory.split("~").pop().split(".")[0]);
+    await FileSystem.readAsStringAsync(item.directory).then((raw: string) => {
+      setParsedSegments([]);
+      raw = JSON.parse(raw).hl7Raw;
+      setHl7Raw(raw);
+      setFilePath(item.directory);
+      setTitle(item.directory.split("~").pop().split(".")[0]);
+      let parsedHl7 = Parser.parseHL7(raw);
+      setParsedSegments([parsedHl7]);
+      bottomSheetRef.current.snapTo(1);
+      editBottomSheetRef.current.snapTo(0);
+    });
+  };
 
-    setParsedSegments(Parser.parseHL7(hl7Raw));
-    setRender(!render);
-
-    console.log(parsedSegments);
-    if (parsedSegments == null || parsedSegments == undefined || parsedSegments == {}) {
-    } else {
+  /* useEffect(() => {
+    if (parsedSegments.length !== 0) {
       bottomSheetRef.current.snapTo(1);
       editBottomSheetRef.current.snapTo(0);
     }
-  };
+  }, [parsedSegments]); */
 
   const state = {
     docsList: [],
@@ -265,7 +301,7 @@ export default function Home() {
         initialSnap={1}
         borderRadius={0}
         renderHeader={() => EditCard.RenderHeader(colors)}
-        renderContent={() => RenderInnerEdit(colors, parsedSegments)}
+        renderContent={() => RenderInnerEdit(colors)}
       />
     </SafeAreaView>
   );
@@ -299,7 +335,7 @@ const styles = StyleSheet.create({
   },
   panel: {
     height: "100%",
-    padding: 20,
+    padding: 0,
     alignItems: "center",
   },
   panelButton: {
