@@ -9,9 +9,11 @@ import * as EditCard from "../components/EditHL7";
 import * as enums from "../constants/enums";
 import { useTheme } from "@react-navigation/native";
 import * as Parser from "../hooks/parseHL7";
-import { parse } from "expo-linking";
 import { ScrollView } from "react-native-gesture-handler";
 import moment from "moment";
+import { useQuery, QueryCache, ReactQueryCacheProvider } from "react-query";
+
+const queryCache = new QueryCache();
 
 interface IHL7File {
   id: number;
@@ -38,14 +40,19 @@ export default function Home() {
   const [filePath, setFilePath] = useState("");
   const [hl7Object, setHl7Object] = useState<IHL7File>(empty);
   const [title, setTitle] = useState("Untitled");
-  const [render, setRender] = useState(false);
   const [parsedSegments, setParsedSegments] = useState([]);
   const [context, setContext] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const { isLoading, error, data } = useQuery("schemaData", () =>
+    fetch("https://api.github.com/repos/tannerlinsley/react-query").then((res) => res.json()),
+  );
+
+  if (error) alert(`An error occurred when retrieving the HL7 schema: ${error}`);
+
   useEffect(() => {
-    //console.log(parsedSegments);
-  }, [render]);
+    console.log(data);
+  }, [isLoading]);
 
   const onRefresh = () => {
     setIsRefreshing(true);
@@ -75,9 +82,23 @@ export default function Home() {
   const RenderInner = (colors: any) => {
     return (
       <View style={[styles.panel, { backgroundColor: colors.border }]}>
-        <View style={{ height: "100%", width: Device.modelName === "iPad" ? "50%" : "100%", backgroundColor: enums.colors.transparent }}>
+        <View
+          style={{
+            height: "100%",
+            width: Device.modelName === "iPad" ? "50%" : "100%",
+            backgroundColor: enums.colors.transparent,
+            paddingHorizontal: 10,
+          }}
+        >
           <TextInput
-            style={{ height: 40, borderColor: colors.text, borderWidth: 0.2, borderRadius: 10, padding: 10, color: colors.text }}
+            style={{
+              height: 40,
+              borderRadius: 10,
+              padding: 10,
+              color: colors.text,
+              backgroundColor: colors.background,
+              marginBottom: 5,
+            }}
             onChangeText={(text) => {
               setTitle(text);
             }}
@@ -87,7 +108,7 @@ export default function Home() {
             placeholderTextColor={colors.text}
           />
           <TextInput
-            style={{ height: 265, borderColor: colors.text, borderWidth: 0.2, borderRadius: 10, padding: 10, color: colors.text }}
+            style={{ height: 265, borderRadius: 10, padding: 10, color: colors.text, backgroundColor: colors.background }}
             onChangeText={(text) => {
               setHl7Raw(text);
             }}
@@ -97,39 +118,41 @@ export default function Home() {
             placeholderTextColor={colors.text}
             multiline={true}
           />
-          <TouchableOpacity
-            onPress={async () => {
-              try {
-                FileSystem.deleteAsync(filePath);
-              } catch {}
-              let date = moment().format();
-              let fileUri = `${FileSystem.documentDirectory}${date}~${title}.txt`;
-              /* await FileSystem.writeAsStringAsync(fileUri, "Hello World", {
+          <View style={{ paddingVertical: 5, backgroundColor: enums.colors.transparent }}>
+            <TouchableOpacity
+              onPress={async () => {
+                try {
+                  FileSystem.deleteAsync(filePath);
+                } catch {}
+                let date = moment().format();
+                let fileUri = `${FileSystem.documentDirectory}${date}~${title}.txt`;
+                /* await FileSystem.writeAsStringAsync(fileUri, "Hello World", {
                 encoding: FileSystem.EncodingType.UTF8,
               }); */
-              const textJson = {
-                name: title,
-                hl7Raw: hl7Raw,
-              };
-              FileSystem.writeAsStringAsync(fileUri, JSON.stringify(textJson));
-              bottomSheetRef.current.snapTo(1);
-              setContext(fileUri);
-            }}
-          >
-            <View style={[{ backgroundColor: colors.primary }, styles.panelButton]}>
-              <Text style={styles.panelButtonTitle}>Save</Text>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={async () => {
-              getItem({ directory: context });
-              bottomSheetRef.current.snapTo(1);
-            }}
-          >
-            <View style={[{ backgroundColor: colors.primary }, styles.panelButton]}>
-              <Text style={styles.panelButtonTitle}>View</Text>
-            </View>
-          </TouchableOpacity>
+                const textJson = {
+                  name: title,
+                  hl7Raw: hl7Raw,
+                };
+                FileSystem.writeAsStringAsync(fileUri, JSON.stringify(textJson));
+                bottomSheetRef.current.snapTo(1);
+                setContext(fileUri);
+              }}
+            >
+              <View style={[{ backgroundColor: colors.primary }, styles.panelButton]}>
+                <Text style={styles.panelButtonTitle}>Save</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={async () => {
+                getItem(hl7Object);
+                bottomSheetRef.current.snapTo(1);
+              }}
+            >
+              <View style={[{ backgroundColor: colors.primary }, styles.panelButton]}>
+                <Text style={styles.panelButtonTitle}>View</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
@@ -146,8 +169,8 @@ export default function Home() {
     return (
       <View style={[styles.panel, { backgroundColor: colors.border }]}>
         <View style={{ height: "100%", width: Device.modelName === "iPad" ? "50%" : "100%", backgroundColor: enums.colors.transparent }}>
-          <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text, marginLeft: 10 }}>{title}</Text>
-          <ScrollView style={{ width: "100%", paddingHorizontal: 10 }}>
+          <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text }}>{title}</Text>
+          <ScrollView style={{ width: "100%" }}>
             {parsedSegments?.map((segments: any, index: number) => {
               return Object.keys(segments).map((segmentCategory, index) => {
                 return (
@@ -156,29 +179,29 @@ export default function Home() {
                       {segmentCategory}
                     </Text>
                     {segments[segmentCategory].map((segment: any, indexi: number) => {
-                      if (segment.subValue)
-                        return (
-                          <View
-                            style={{
-                              borderRadius: 10,
-                              flexDirection: "row",
-                              justifyContent: "space-between",
-                              borderWidth: 1,
-                              borderColor: colors.background,
-                              backgroundColor: colors.background,
-                              padding: 5,
-                              marginVertical: 2,
-                            }}
-                            key={indexi}
-                          >
-                            <Text style={{ width: "50%", fontWeight: "300", fontSize: 14 }} selectable>
-                              {segment.segmentName}
-                            </Text>
-                            <Text style={{ width: "50%", fontSize: 14 }} selectable>
-                              {segment.subValue}
-                            </Text>
-                          </View>
-                        );
+                      //if (segment.subValue)
+                      return (
+                        <View
+                          style={{
+                            borderRadius: 10,
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            borderWidth: 1,
+                            borderColor: colors.background,
+                            backgroundColor: colors.background,
+                            padding: 5,
+                            marginVertical: 2,
+                          }}
+                          key={indexi}
+                        >
+                          <Text style={{ width: "50%", fontWeight: "300", fontSize: 14 }} selectable>
+                            {segment.segmentName}
+                          </Text>
+                          <Text style={{ width: "50%", fontSize: 14 }} selectable>
+                            {segment.subValue}
+                          </Text>
+                        </View>
+                      );
                     })}
                   </View>
                 );
@@ -206,9 +229,9 @@ export default function Home() {
     if (text) {
       // Inserted text is not blank
       // Filter the masterDataSource and update FilteredDataSource
-      const newData = masterDataSource.filter(function (item) {
+      const newData = masterDataSource.filter(function (item: IHL7File) {
         // Applying filter for the inserted text in search bar
-        const itemData = item.title ? item.title.toUpperCase() : "".toUpperCase();
+        const itemData = item.name ? item.name.toUpperCase() : "".toUpperCase();
         const textData = text.toUpperCase();
         return itemData.indexOf(textData) > -1;
       });
@@ -225,10 +248,22 @@ export default function Home() {
   const ItemView = ({ item }: any) => {
     return (
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <Text style={styles.itemStyle} onPress={() => getItem(item)}>
+        <Text
+          style={styles.itemStyle}
+          onPress={() => {
+            setHl7Object(item);
+            getItem(item);
+          }}
+        >
           {item.name}
         </Text>
-        <Text style={[styles.itemStyle, { fontWeight: "200" }]} onPress={() => getItem(item)}>
+        <Text
+          style={[styles.itemStyle, { fontWeight: "200" }]}
+          onPress={() => {
+            setHl7Object(item);
+            getItem(item);
+          }}
+        >
           {`${moment(item.date).format("MM/DD/YY")}`}
         </Text>
       </View>
@@ -277,17 +312,8 @@ export default function Home() {
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <View style={styles.container}>
-        <TouchableOpacity
-          onPress={async () => {
-            bottomSheetRef.current.snapTo(0);
-          }}
-        >
-          <View style={[{ backgroundColor: colors.primary }, styles.panelButton]}>
-            <Text style={styles.panelButtonTitle}>New</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        {/* <TouchableOpacity
           onPress={async () => {
             let dir = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory);
             state.docsList = [];
@@ -305,14 +331,25 @@ export default function Home() {
           }}
         >
           <Text>view</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
         <TextInput
-          style={styles.textInputStyle}
+          style={[styles.textInputStyle, { backgroundColor: colors.background }]}
           onChangeText={(text) => searchFilterFunction(text)}
           value={search}
-          underlineColorAndroid="transparent"
+          underlineColorAndroid={enums.colors.transparent}
           placeholder="Search Here"
         />
+        <TouchableOpacity
+          onPress={async () => {
+            bottomSheetRef.current.snapTo(0);
+          }}
+        >
+          <View style={[{ backgroundColor: colors.primary }, styles.controlButton]}>
+            <Text style={styles.panelButtonTitle}>New</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.container}>
         <FlatList
           style={{ width: "100%" }}
           data={filteredDataSource}
@@ -363,22 +400,32 @@ const styles = StyleSheet.create({
   },
   textInputStyle: {
     height: 40,
-    borderWidth: 1,
-    paddingLeft: 20,
+    width: 200,
+    borderRadius: 10,
+    paddingLeft: 10,
     margin: 5,
-    borderColor: "#009688",
-    backgroundColor: "#FFFFFF",
+  },
+  controlButton: {
+    height: 40,
+    width: 100,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    margin: 5,
   },
   panel: {
     height: "100%",
     padding: 0,
+    paddingHorizontal: 10,
     alignItems: "center",
   },
   panelButton: {
-    padding: 20,
+    height: 62,
+    width: "100%",
     borderRadius: 10,
     alignItems: "center",
-    marginVertical: 10,
+    justifyContent: "center",
+    marginVertical: 5,
   },
   panelButtonTitle: {
     fontSize: 14,
