@@ -11,6 +11,7 @@ import { useTheme } from "@react-navigation/native";
 import * as Parser from "../hooks/parseHL7";
 import { parse } from "expo-linking";
 import { ScrollView } from "react-native-gesture-handler";
+import moment from "moment";
 
 interface IHL7File {
   id: number;
@@ -40,10 +41,16 @@ export default function Home() {
   const [render, setRender] = useState(false);
   const [parsedSegments, setParsedSegments] = useState([]);
   const [context, setContext] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     //console.log(parsedSegments);
   }, [render]);
+
+  const onRefresh = () => {
+    setIsRefreshing(true);
+    setContext("");
+  };
 
   useEffect(() => {
     (async () => {
@@ -55,14 +62,15 @@ export default function Home() {
         state.docsList.push({
           id: index,
           directory: directory,
-          name: directory.split("~").pop().split(".")[0],
+          name: directory.split("~").pop()?.split(".")[0],
           date: directory.split("/").pop()?.split("~")[0],
         });
         setFilteredDataSource(state.docsList);
         setMasterDataSource(state.docsList);
       });
+      setIsRefreshing(false);
     })();
-  }, [context]);
+  }, [context, isRefreshing]);
 
   const RenderInner = (colors: any) => {
     return (
@@ -79,7 +87,7 @@ export default function Home() {
             placeholderTextColor={colors.text}
           />
           <TextInput
-            style={{ height: 325, borderColor: colors.text, borderWidth: 0.2, borderRadius: 10, padding: 10, color: colors.text }}
+            style={{ height: 265, borderColor: colors.text, borderWidth: 0.2, borderRadius: 10, padding: 10, color: colors.text }}
             onChangeText={(text) => {
               setHl7Raw(text);
             }}
@@ -94,7 +102,7 @@ export default function Home() {
               try {
                 FileSystem.deleteAsync(filePath);
               } catch {}
-              let date = new Date().valueOf();
+              let date = moment().format();
               let fileUri = `${FileSystem.documentDirectory}${date}~${title}.txt`;
               /* await FileSystem.writeAsStringAsync(fileUri, "Hello World", {
                 encoding: FileSystem.EncodingType.UTF8,
@@ -110,6 +118,16 @@ export default function Home() {
           >
             <View style={[{ backgroundColor: colors.primary }, styles.panelButton]}>
               <Text style={styles.panelButtonTitle}>Save</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={async () => {
+              getItem({ directory: context });
+              bottomSheetRef.current.snapTo(1);
+            }}
+          >
+            <View style={[{ backgroundColor: colors.primary }, styles.panelButton]}>
+              <Text style={styles.panelButtonTitle}>View</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -128,13 +146,13 @@ export default function Home() {
     return (
       <View style={[styles.panel, { backgroundColor: colors.border }]}>
         <View style={{ height: "100%", width: Device.modelName === "iPad" ? "50%" : "100%", backgroundColor: enums.colors.transparent }}>
-          <Text style={{ fontSize: 25, fontWeight: "700", color: colors.text, marginLeft: 20 }}>{title}</Text>
-          <ScrollView style={{ width: "100%", paddingHorizontal: 20 }}>
+          <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text, marginLeft: 10 }}>{title}</Text>
+          <ScrollView style={{ width: "100%", paddingHorizontal: 10 }}>
             {parsedSegments?.map((segments: any, index: number) => {
               return Object.keys(segments).map((segmentCategory, index) => {
                 return (
                   <View style={{ backgroundColor: enums.colors.transparent }} key={index}>
-                    <Text selectable style={{ marginVertical: 10, fontSize: 20 }}>
+                    <Text selectable style={{ marginVertical: 10, fontSize: 20, fontWeight: "200" }}>
                       {segmentCategory}
                     </Text>
                     {segments[segmentCategory].map((segment: any, indexi: number) => {
@@ -142,19 +160,23 @@ export default function Home() {
                         return (
                           <View
                             style={{
+                              borderRadius: 10,
                               flexDirection: "row",
                               justifyContent: "space-between",
                               borderWidth: 1,
-                              borderColor: colors.border,
-                              backgroundColor: enums.colors.transparent,
+                              borderColor: colors.background,
+                              backgroundColor: colors.background,
                               padding: 5,
+                              marginVertical: 2,
                             }}
                             key={indexi}
                           >
-                            <Text style={{ fontWeight: "300" }} selectable>
+                            <Text style={{ width: "50%", fontWeight: "300", fontSize: 14 }} selectable>
                               {segment.segmentName}
                             </Text>
-                            <Text selectable>{segment.subValue}</Text>
+                            <Text style={{ width: "50%", fontSize: 14 }} selectable>
+                              {segment.subValue}
+                            </Text>
                           </View>
                         );
                     })}
@@ -206,8 +228,8 @@ export default function Home() {
         <Text style={styles.itemStyle} onPress={() => getItem(item)}>
           {item.name}
         </Text>
-        <Text style={styles.itemStyle} onPress={() => getItem(item)}>
-          {item.date}
+        <Text style={[styles.itemStyle, { fontWeight: "200" }]} onPress={() => getItem(item)}>
+          {`${moment(item.date).format("MM/DD/YY")}`}
         </Text>
       </View>
     );
@@ -294,6 +316,8 @@ export default function Home() {
         <FlatList
           style={{ width: "100%" }}
           data={filteredDataSource}
+          onRefresh={() => onRefresh()}
+          refreshing={isRefreshing}
           keyExtractor={(item, index) => index.toString()}
           ItemSeparatorComponent={ItemSeparatorView}
           renderItem={ItemView}

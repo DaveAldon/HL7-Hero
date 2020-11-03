@@ -41,7 +41,8 @@ export function parseHL7(raw: string) {
         }
 
         subDetail = {
-          segmentName: `${segmentName}-${i + 1}: ${dictionary[segmentName][i + 1]}`,
+          segmentName: `${i + 1}: ${dictionary[segmentName][i + 1]}`,
+          //segmentName: `${segmentName}-${i + 1}: ${dictionary[segmentName][i + 1]}`,
           subValue: subvalue,
         };
 
