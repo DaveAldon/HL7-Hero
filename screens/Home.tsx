@@ -11,16 +11,19 @@ import { useTheme } from "@react-navigation/native";
 import * as Parser from "../hooks/parseHL7";
 import { parse } from "expo-linking";
 import { ScrollView } from "react-native-gesture-handler";
+
 interface IHL7File {
   id: number;
   directory: string;
   name: string;
+  date: string;
 }
 
 const empty = {
   id: 0,
   directory: "",
   name: "",
+  date: "",
 };
 
 export default function Home() {
@@ -36,6 +39,7 @@ export default function Home() {
   const [title, setTitle] = useState("Untitled");
   const [render, setRender] = useState(false);
   const [parsedSegments, setParsedSegments] = useState([]);
+  const [context, setContext] = useState("");
 
   useEffect(() => {
     //console.log(parsedSegments);
@@ -52,12 +56,13 @@ export default function Home() {
           id: index,
           directory: directory,
           name: directory.split("~").pop().split(".")[0],
+          date: directory.split("/").pop()?.split("~")[0],
         });
         setFilteredDataSource(state.docsList);
         setMasterDataSource(state.docsList);
       });
     })();
-  }, []);
+  }, [context]);
 
   const RenderInner = (colors: any) => {
     return (
@@ -89,16 +94,18 @@ export default function Home() {
               try {
                 FileSystem.deleteAsync(filePath);
               } catch {}
-              let fileUri = `${FileSystem.documentDirectory}${new Date().valueOf()}~${title}.txt`;
-              await FileSystem.writeAsStringAsync(fileUri, "Hello World", {
+              let date = new Date().valueOf();
+              let fileUri = `${FileSystem.documentDirectory}${date}~${title}.txt`;
+              /* await FileSystem.writeAsStringAsync(fileUri, "Hello World", {
                 encoding: FileSystem.EncodingType.UTF8,
-              });
+              }); */
               const textJson = {
                 name: title,
                 hl7Raw: hl7Raw,
               };
               FileSystem.writeAsStringAsync(fileUri, JSON.stringify(textJson));
               bottomSheetRef.current.snapTo(1);
+              setContext(fileUri);
             }}
           >
             <View style={[{ backgroundColor: colors.primary }, styles.panelButton]}>
@@ -138,7 +145,7 @@ export default function Home() {
                               flexDirection: "row",
                               justifyContent: "space-between",
                               borderWidth: 1,
-                              borderColor: colors.background,
+                              borderColor: colors.border,
                               backgroundColor: enums.colors.transparent,
                               padding: 5,
                             }}
@@ -193,12 +200,16 @@ export default function Home() {
     }
   };
 
-  const ItemView = ({ item }) => {
+  const ItemView = ({ item }: any) => {
     return (
-      // Flat List Item
-      <Text style={styles.itemStyle} onPress={() => getItem(item)}>
-        {item.name}
-      </Text>
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <Text style={styles.itemStyle} onPress={() => getItem(item)}>
+          {item.name}
+        </Text>
+        <Text style={styles.itemStyle} onPress={() => getItem(item)}>
+          {item.date}
+        </Text>
+      </View>
     );
   };
 
@@ -281,6 +292,7 @@ export default function Home() {
           placeholder="Search Here"
         />
         <FlatList
+          style={{ width: "100%" }}
           data={filteredDataSource}
           keyExtractor={(item, index) => index.toString()}
           ItemSeparatorComponent={ItemSeparatorView}
